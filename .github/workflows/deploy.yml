@@ -1,0 +1,72 @@
+name: Deploy Mastra Agent to EC2
+
+# 触发条件：当代码推送到 main 分支时执行
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      # 1. 拉取最新代码
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      # 2. 设置 Node.js 环境（与 package.json engines >=22.13 对齐）
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      # 3. 安装依赖并执行 Mastra 打包
+      - name: Install and Build
+        run: |
+          npm ci
+          npm run build
+          # 删除打包目录下的 node_modules，避免跨系统二进制冲突
+          rm -rf .mastra/output/node_modules
+
+      # 3b. 打成单包，便于 SCP 且保留 .mastra/output 目录结构（供 node .mastra/output/index.mjs）
+      - name: Pack deploy bundle
+        run: |
+          tar czf mastra-deploy.tar.gz package.json package-lock.json .mastra/output
+
+      # 3c. 确保远程目录存在（首次部署）
+      - name: Ensure remote deploy directory
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USERNAME }}
+          key: ${{ secrets.EC2_SSH_KEY }}
+          script: mkdir -p /home/ec2-user/wyckoff-agent
+
+      # 4. 将打包产物传到 EC2
+      - name: Copy bundle to EC2
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USERNAME }}
+          key: ${{ secrets.EC2_SSH_KEY }}
+          source: mastra-deploy.tar.gz
+          target: /home/ec2-user/wyckoff-agent
+
+      # 5. SSH 登录 EC2：解压、安装生产依赖、PM2 重启
+      - name: SSH and Restart PM2
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USERNAME }}
+          key: ${{ secrets.EC2_SSH_KEY }}
+          script: |
+            set -e
+            cd /home/ec2-user/wyckoff-agent
+            tar xzf mastra-deploy.tar.gz
+            rm -f mastra-deploy.tar.gz
+            npm ci --omit=dev
+            # Mastra CLI 构建入口：node .mastra/output/index.mjs
+            pm2 reload wyckoff-agent 2>/dev/null || pm2 start .mastra/output/index.mjs --name wyckoff-agent
+            pm2 save
