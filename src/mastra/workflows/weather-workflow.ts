@@ -56,7 +56,7 @@ const fetchWeather = createStep({
 
     const { latitude, longitude, name } = geocodingData.results[0];
 
-    const weatherUrl = `https://api.open-meteo.com/v1/forecast?latitude=${latitude}&longitude=${longitude}&current=precipitation,weathercode&timezone=auto,&hourly=precipitation_probability,temperature_2m`;
+    const weatherUrl = `https://api.open-meteo.com/v1/forecast?latitude=${latitude}&longitude=${longitude}&current=precipitation,weathercode&timezone=auto&hourly=precipitation_probability,temperature_2m`;
     const response = await fetch(weatherUrl);
     const data = (await response.json()) as {
       current: {

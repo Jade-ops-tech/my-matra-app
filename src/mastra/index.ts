@@ -1,3 +1,4 @@
+import 'dotenv/config';
 
 import { Mastra } from '@mastra/core/mastra';
 import { PinoLogger } from '@mastra/loggers';
@@ -6,12 +7,14 @@ import { DuckDBStore } from "@mastra/duckdb";
 import { MastraCompositeStore } from '@mastra/core/storage';
 import { Observability, DefaultExporter, CloudExporter, SensitiveDataFilter } from '@mastra/observability';
 import { weatherWorkflow } from './workflows/weather-workflow';
-import { weatherAgent } from './agents/weather-agent';
+import { cryptoAnalysisFlow } from './workflows/crypto-analysis-workflow';
+import { pdArrayReportFlow } from './workflows/pd-array-report-workflow';
+import { weatherAgent, marketAnalystAgent, wyckoffAnalyst, ictPdArrayAnalyst } from './agents';
 import { toolCallAppropriatenessScorer, completenessScorer, translationScorer } from './scorers/weather-scorer';
 
 export const mastra = new Mastra({
-  workflows: { weatherWorkflow },
-  agents: { weatherAgent },
+  workflows: { weatherWorkflow, cryptoAnalysisFlow, pdArrayReportFlow },
+  agents: { weatherAgent, marketAnalystAgent, wyckoffAnalyst, ictPdArrayAnalyst },
   scorers: { toolCallAppropriatenessScorer, completenessScorer, translationScorer },
   storage: new MastraCompositeStore({
     id: 'composite-storage',
