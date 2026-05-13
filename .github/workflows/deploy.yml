@@ -11,24 +11,27 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      # 1. 拉取最新代码
+      # 1. 拉取最新代码（v6 使用 Node 24 运行时，消除 “Node.js 20 actions deprecated” 类告警）
       - name: Checkout Code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       # 2. 设置 Node.js 环境（与 package.json engines >=22.13 对齐）
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
           node-version: '22'
           cache: npm
 
       # 3. 安装依赖并执行 Mastra 打包
       - name: Install and Build
+        env:
+          NODE_OPTIONS: --max-old-space-size=6144
         run: |
           npm ci
           npm run build
           # 删除打包目录下的 node_modules，避免跨系统二进制冲突
           rm -rf .mastra/output/node_modules
+          test -f .mastra/output/index.mjs || (echo "::error::构建后未找到 .mastra/output/index.mjs，请检查 mastra build 日志" && exit 1)
 
       # 3b. 打成单包，便于 SCP 且保留 .mastra/output 目录结构（供 node .mastra/output/index.mjs）
       - name: Pack deploy bundle
